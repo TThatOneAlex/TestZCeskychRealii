@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="test.css">
+</head>
+<body>
+    <div class="container">
+        
+        <h1>Test z českých reálií</h1>
+        
+        <button onclick="generateTest()">Zahájit Test</button>
+        <form action="POST">
+            <table id="questionsTable">
+            <tbody>
+                
+            </tbody>
+        </table>
+        </form>
+        <button onclick="gradeTest()">Vyhodnotit Test</button>
+        
+    </div>
+    
+    <script>
+        const qTable = document.getElementById("questionsTable");
+
+        
+async function generateTest() {
+    console.log("Attempted");
+
+    try {
+        
+        const [questionsResponse, imagesResponse] = await Promise.all([
+            fetch("Questions.json"),
+            fetch("images.json")
+        ]);
+
+        if (!questionsResponse.ok || !imagesResponse.ok) {
+            throw new Error("Failed to load JSON files.");
+        }
+
+        const questionsData = await questionsResponse.json();
+        const imagesData = await imagesResponse.json();
+
+        
+        const allQuestions = [...questionsData.questions];
+
+        
+        for (let i = allQuestions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [allQuestions[i], allQuestions[j]] =
+                [allQuestions[j], allQuestions[i]];
+        }
+
+        const selectedQuestions = allQuestions.slice(0, 30);
+
+        
+        const table = document.querySelector("#questionsTable");
+        table.innerHTML = "";
+
+        
+        for (const item of selectedQuestions) {
+            const num = item.number;
+
+            
+            const optionsHTML = item.options.map(option => `
+                <li>
+                    ${option.letter}: ${option.text}
+                </li>
+            `).join("");
+
+           
+            const imageData = imagesData.images.find(
+                img => img.number === num
+            );
+
+            let imagesHTML = "";
+
+            if (imageData) {
+                if (imageData.multiple) {
+                    
+                    imagesHTML = `
+                        <div class="answer-images">
+                            ${["A", "B", "C", "D"].map(letter => {
+                                const imageName =
+                                    imageData["image" + letter];
+
+                                if (!imageName) return "";
+
+                                return `
+                                    <div class="answer-image">
+                                        <img
+                                            src="Images/${imageName}.jpg"
+                                            alt="Option ${letter}"
+                                        >
+                                        <p>${letter}</p>
+                                    </div>
+                                `;
+                            }).join("")}
+                        </div>
+                    `;
+                } else if (imageData.image) {
+                    
+                    imagesHTML = `
+                        <div class="question-image">
+                            <img
+                                src="Images/${imageData.image}.jpg"
+                                alt="Question ${num}"
+                            >
+                        </div>
+                    `;
+                }
+            }
+
+            
+            const radioButtonsHTML = ["A", "B", "C", "D"].map(letter => `
+                <input
+                    type="radio"
+                    id="${letter}${num}"
+                    value="${letter}"
+                    name="question${num}"
+                >
+                <label for="${letter}${num}">${letter}</label>
+            `).join("");
+
+            
+            table.innerHTML += `
+                <tr>
+                    <td>
+                        <p>${item.question}</p>
+
+                        ${imagesHTML}
+
+                        <ul>
+                            ${optionsHTML}
+                        </ul>
+                    </td>
+
+                    
+                </tr>
+                <tr>
+                    <td>
+                        ${radioButtonsHTML}
+
+                        <p
+                            id="correctAnswer${num}"
+                            style="display: none;"
+                        ></p>
+                    </td>
+                </tr>
+            `;
+        }
+
+    } catch (error) {
+        console.error("Error generating test:", error);
+        alert("Nepodařilo se vygenerovat test.");
+    }
+}
+
+    
+   async function gradeTest() {
+    try {
+        const response = await fetch("Questions.json");
+
+        if (!response.ok) {
+            throw new Error("Failed to load Questions.json");
+        }
+
+        const data = await response.json();
+
+        let correct = 0;
+        let answered = 0;
+
+        const questionNumbers = new Set();
+
+        document.querySelectorAll(
+            '#questionsTable input[type="radio"]'
+        ).forEach(input => {
+            questionNumbers.add(
+                input.name.replace("question", "")
+            );
+        });
+
+        const total = questionNumbers.size;
+
+        for (const num of questionNumbers) {
+            const item = data.questions.find(
+                question => question.number === Number(num)
+            );
+
+            if (!item) continue;
+
+            const selected = document.querySelector(
+                `input[name="question${num}"]:checked`
+            );
+
+            const answerElement = document.querySelector(
+                `#correctAnswer${num}`
+            );
+
+            // Display the correct answer
+            answerElement.style.display = "block";
+            answerElement.textContent =
+                `Správná odpověď: ${item.correct_answer.letter} – ` +
+                item.correct_answer.text;
+
+            if (selected) {
+                answered++;
+
+                if (selected.value === item.correct_answer.letter) {
+                    correct++;
+
+                    answerElement.style.color = "green";
+                } else {
+                    answerElement.style.color = "red";
+                }
+            } else {
+                answerElement.style.color = "red";
+            }
+        }
+
+        const percentage = total > 0
+            ? Math.round((correct / total) * 100)
+            : 0;
+
+        alert(
+            `Výsledek testu:\n\n` +
+            `Správně: ${correct} z ${total}\n` +
+            `Zodpovězeno: ${answered} z ${total}\n` +
+            `Úspěšnost: ${percentage} %`
+        );
+
+    } catch (error) {
+        console.error("Chyba při vyhodnocování testu:", error);
+        alert("Test se nepodařilo vyhodnotit.");
+    }
+}
+    
+
+    </script>
+</body>
+</html>
